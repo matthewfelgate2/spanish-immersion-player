@@ -20,7 +20,7 @@ from concrete_words import CONCRETE_WORDS
 
 load_dotenv()
 
-VERSION = "0.2.3"
+VERSION = "0.2.4"
 
 PEXELS_API_KEY = os.getenv("PEXELS_API_KEY")
 PIXABAY_API_KEY = os.getenv("PIXABAY_API_KEY")
@@ -29,7 +29,7 @@ PIXABAY_API_KEY = os.getenv("PIXABAY_API_KEY")
 _proxy_user = os.getenv("PROXY_USERNAME", "")
 _proxy_pass = os.getenv("PROXY_PASSWORD", "")
 PROXY_URL = (
-    f"http://{_proxy_user.replace('@', '%40')}:{_proxy_pass.replace('$', '%24')}@proxy.webshare.io:80"
+    f"http://{_proxy_user.replace('@', '%40')}:{_proxy_pass.replace('$', '%24')}@p.webshare.io:80"
     if _proxy_user and _proxy_pass else None
 )
 
@@ -1277,6 +1277,76 @@ def find_emoji(word: str) -> str | None:
     return None
 
 
+# ── Invidious fallback ────────────────────────────────────────────────────────
+
+INVIDIOUS_INSTANCES = [
+    "https://inv.nadeko.net",
+    "https://invidious.privacyredirect.com",
+    "https://yt.cdaut.de",
+    "https://invidious.tiekoetter.com",
+]
+
+
+def _vtt_time(ts: str) -> float:
+    ts = ts.replace(",", ".")
+    h, m, s = ts.split(":")
+    return float(h) * 3600 + float(m) * 60 + float(s)
+
+
+def parse_vtt(text: str) -> list[dict]:
+    segments = []
+    time_re = re.compile(
+        r"(\d{2}:\d{2}:\d{2}[.,]\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}[.,]\d{3})"
+    )
+    for block in re.split(r"\n{2,}", text.strip()):
+        lines = block.strip().splitlines()
+        start_s = end_s = None
+        parts = []
+        for line in lines:
+            m = time_re.search(line)
+            if m:
+                start_s = _vtt_time(m.group(1))
+                end_s = _vtt_time(m.group(2))
+            elif start_s is not None and line and not line.strip().isdigit():
+                clean = re.sub(r"<[^>]+>", "", line).strip()
+                if clean:
+                    parts.append(clean)
+        if start_s is not None and parts:
+            segments.append({
+                "start": start_s,
+                "duration": max(end_s - start_s, 0.1),
+                "text": " ".join(parts),
+            })
+    return segments
+
+
+async def fetch_subtitles_invidious(vid: str) -> list[dict] | None:
+    async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
+        for instance in INVIDIOUS_INSTANCES:
+            try:
+                r = await client.get(f"{instance}/api/v1/captions/{vid}")
+                if r.status_code != 200:
+                    continue
+                caps = r.json().get("captions", [])
+                spanish = [c for c in caps if c.get("language_code", "").startswith("es")]
+                if not spanish:
+                    print(f"[DEBUG] Invidious {instance}: no Spanish captions", flush=True)
+                    continue
+                cap_url = spanish[0].get("url", "")
+                if cap_url.startswith("/"):
+                    cap_url = instance + cap_url
+                vtt_r = await client.get(cap_url)
+                if vtt_r.status_code != 200:
+                    continue
+                segs = parse_vtt(vtt_r.text)
+                if segs:
+                    print(f"[DEBUG] Invidious success via {instance}: {len(segs)} segments", flush=True)
+                    return segs
+            except Exception as exc:
+                print(f"[DEBUG] Invidious {instance} failed: {exc}", flush=True)
+    return None
+
+
 @app.get("/api/version")
 async def get_version():
     return {"version": VERSION}
@@ -1323,8 +1393,10 @@ async def process_video(req: VideoRequest):
             yield event({"type": "result", **_cache[vid]})
             return
 
-        # Step 1: fetch subtitles via yt-dlp
+        # Step 1: fetch subtitles — try yt-dlp first, fall back to Invidious
         yield event({"type": "progress", "message": "Fetching subtitles…"})
+        transcript = None
+
         try:
             url = f"https://www.youtube.com/watch?v={vid}"
             ydl_opts = {
@@ -1339,51 +1411,46 @@ async def process_video(req: VideoRequest):
                 lambda: yt_dlp.YoutubeDL(ydl_opts).extract_info(url, download=False),
             )
 
-            # Prefer manual subs, fall back to auto-generated
             all_subs = {**info.get("automatic_captions", {}), **info.get("subtitles", {})}
-            print(f"[DEBUG] Available subtitle langs: {list(all_subs.keys())}", flush=True)
+            print(f"[DEBUG] yt-dlp langs: {list(all_subs.keys())}", flush=True)
 
             spanish_langs = ["es", "es-orig", "es-419", "es-ES", "es-MX", "es-AR", "es-CO", "es-US"]
             sub_url = None
             for lang in spanish_langs:
-                formats = all_subs.get(lang, [])
-                for fmt in formats:
+                for fmt in all_subs.get(lang, []):
                     if fmt.get("ext") == "json3":
                         sub_url = fmt["url"]
-                        print(f"[DEBUG] Found json3 for lang={lang}", flush=True)
                         break
                 if sub_url:
                     break
 
-            if not sub_url:
-                print(f"[DEBUG] No Spanish json3 found. All langs: {list(all_subs.keys())}", flush=True)
-                yield event({"type": "result", "has_subtitles": False})
-                return
+            if sub_url:
+                async with httpx.AsyncClient() as client:
+                    r = await client.get(sub_url, timeout=15.0)
+                    r.raise_for_status()
+                    sub_data = r.json()
 
-            async with httpx.AsyncClient() as client:
-                r = await client.get(sub_url, timeout=15.0)
-                r.raise_for_status()
-                sub_data = r.json()
-
-            transcript = []
-            for ev in sub_data.get("events", []):
-                segs = ev.get("segs", [])
-                text = "".join(s.get("utf8", "") for s in segs).strip()
-                if text and text != "\n":
-                    transcript.append({
-                        "text": text,
-                        "start": ev["tStartMs"] / 1000,
-                        "duration": ev.get("dDurationMs", 2000) / 1000,
-                    })
-
-            print(f"[DEBUG] Transcript segments: {len(transcript)}", flush=True)
-
-            if not transcript:
-                yield event({"type": "result", "has_subtitles": False})
-                return
-
+                transcript = []
+                for ev in sub_data.get("events", []):
+                    segs = ev.get("segs", [])
+                    text = "".join(s.get("utf8", "") for s in segs).strip()
+                    if text and text != "\n":
+                        transcript.append({
+                            "text": text,
+                            "start": ev["tStartMs"] / 1000,
+                            "duration": ev.get("dDurationMs", 2000) / 1000,
+                        })
+                print(f"[DEBUG] yt-dlp transcript segments: {len(transcript)}", flush=True)
+                if not transcript:
+                    transcript = None
         except Exception as e:
-            print(f"[DEBUG] Subtitle fetch exception: {type(e).__name__}: {e}", flush=True)
+            print(f"[DEBUG] yt-dlp failed: {type(e).__name__}: {e}", flush=True)
+
+        if not transcript:
+            yield event({"type": "progress", "message": "Trying alternative source…"})
+            transcript = await fetch_subtitles_invidious(vid)
+
+        if not transcript:
             yield event({"type": "result", "has_subtitles": False})
             return
 
