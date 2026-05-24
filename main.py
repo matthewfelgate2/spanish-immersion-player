@@ -20,7 +20,7 @@ from concrete_words import CONCRETE_WORDS
 
 load_dotenv()
 
-VERSION = "0.2.4"
+VERSION = "0.2.5"
 
 PEXELS_API_KEY = os.getenv("PEXELS_API_KEY")
 PIXABAY_API_KEY = os.getenv("PIXABAY_API_KEY")
@@ -1357,7 +1357,7 @@ async def debug_subtitles(vid: str):
     """Diagnostic endpoint — shows exactly what yt-dlp finds for a video."""
     try:
         url = f"https://www.youtube.com/watch?v={vid}"
-        ydl_opts = {"skip_download": True, "quiet": True, "no_warnings": True, **({"proxy": PROXY_URL} if PROXY_URL else {})}
+        ydl_opts = {"skip_download": True, "quiet": True, "no_warnings": True, "extractor_args": {"youtube": {"player_client": ["android"]}}}
         loop = asyncio.get_event_loop()
         info = await loop.run_in_executor(
             None,
@@ -1403,7 +1403,7 @@ async def process_video(req: VideoRequest):
                 "skip_download": True,
                 "quiet": True,
                 "no_warnings": True,
-                **({"proxy": PROXY_URL} if PROXY_URL else {}),
+                "extractor_args": {"youtube": {"player_client": ["android"]}},
             }
             loop = asyncio.get_event_loop()
             info = await loop.run_in_executor(
