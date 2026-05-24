@@ -20,7 +20,7 @@ from concrete_words import CONCRETE_WORDS
 
 load_dotenv()
 
-VERSION = "0.2.1"
+VERSION = "0.2.2"
 
 PEXELS_API_KEY = os.getenv("PEXELS_API_KEY")
 PIXABAY_API_KEY = os.getenv("PIXABAY_API_KEY")
@@ -1272,6 +1272,30 @@ def find_emoji(word: str) -> str | None:
 @app.get("/api/version")
 async def get_version():
     return {"version": VERSION}
+
+
+@app.get("/api/debug/{vid}")
+async def debug_subtitles(vid: str):
+    """Diagnostic endpoint — shows exactly what yt-dlp finds for a video."""
+    try:
+        url = f"https://www.youtube.com/watch?v={vid}"
+        ydl_opts = {"skip_download": True, "quiet": True, "no_warnings": True}
+        loop = asyncio.get_event_loop()
+        info = await loop.run_in_executor(
+            None,
+            lambda: yt_dlp.YoutubeDL(ydl_opts).extract_info(url, download=False),
+        )
+        all_subs = {**info.get("automatic_captions", {}), **info.get("subtitles", {})}
+        return {
+            "title": info.get("title"),
+            "available_langs": list(all_subs.keys()),
+            "spanish_formats": {
+                lang: [f.get("ext") for f in all_subs[lang]]
+                for lang in all_subs if lang.startswith("es")
+            },
+        }
+    except Exception as e:
+        return {"error": type(e).__name__, "detail": str(e)}
 
 
 @app.post("/api/process")
