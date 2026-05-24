@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+youtube-transcript-api
+httpx
+python-dotenv
+nltk
+deep-translator
+emoji
