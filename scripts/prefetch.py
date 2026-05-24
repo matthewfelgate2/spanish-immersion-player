@@ -49,7 +49,7 @@ os.makedirs(DATA_DIR, exist_ok=True)
 SPANISH_LANGS = ["es", "es-orig", "es-419", "es-ES", "es-MX", "es-AR", "es-CO", "es-US"]
 
 
-async def prefetch_video(url: str):
+async def prefetch_video(url: str, level_override: str | None = None):
     vid = extract_video_id(url)
     print(f"\nPrefetching {vid} …")
 
@@ -109,9 +109,9 @@ async def prefetch_video(url: str):
     print(f"  Subtitle segments: {len(transcript)}")
 
     # ── 4. Level + candidates ─────────────────────────────────────────────────
-    level = assess_level(transcript)
+    level = level_override or assess_level(transcript)
     candidates = get_candidates(transcript)
-    print(f"  Level: {level}  |  Candidates: {len(candidates)}")
+    print(f"  Level: {level}{' (override)' if level_override else ''}  |  Candidates: {len(candidates)}")
 
     # ── 5. Translate ──────────────────────────────────────────────────────────
     translator = GoogleTranslator(source="es", target="en")
@@ -225,7 +225,10 @@ async def prefetch_video(url: str):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: python scripts/prefetch.py <youtube_url>")
-        sys.exit(1)
-    asyncio.run(prefetch_video(sys.argv[1]))
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("url", help="YouTube URL")
+    parser.add_argument("--level", choices=["Super Beginner", "Beginner", "Intermediate", "Advanced"],
+                        help="Override the auto-detected level")
+    args = parser.parse_args()
+    asyncio.run(prefetch_video(args.url, level_override=args.level))
