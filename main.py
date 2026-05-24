@@ -14,7 +14,7 @@ import nltk
 import emoji as emoji_lib
 from nltk.corpus import stopwords, wordnet
 from dotenv import load_dotenv
-from youtube_transcript_api import YouTubeTranscriptApi, NoTranscriptFound, TranscriptsDisabled
+import yt_dlp
 from deep_translator import GoogleTranslator
 from concrete_words import CONCRETE_WORDS
 
@@ -1284,21 +1284,58 @@ async def process_video(req: VideoRequest):
             yield event({"type": "result", **_cache[vid]})
             return
 
-        # Step 1: fetch subtitles
+        # Step 1: fetch subtitles via yt-dlp
         yield event({"type": "progress", "message": "Fetching subtitles…"})
         try:
-            api = YouTubeTranscriptApi()
-            raw = api.fetch(
-                vid,
-                languages=["es", "es-419", "es-ES", "es-MX", "es-AR", "es-CO", "es-US"],
+            url = f"https://www.youtube.com/watch?v={vid}"
+            ydl_opts = {
+                "skip_download": True,
+                "quiet": True,
+                "no_warnings": True,
+            }
+            loop = asyncio.get_event_loop()
+            info = await loop.run_in_executor(
+                None,
+                lambda: yt_dlp.YoutubeDL(ydl_opts).extract_info(url, download=False),
             )
-            transcript = [
-                {"text": s.text, "start": s.start, "duration": s.duration}
-                for s in raw
-            ]
-        except (NoTranscriptFound, TranscriptsDisabled):
-            yield event({"type": "result", "has_subtitles": False})
-            return
+
+            # Prefer manual subs, fall back to auto-generated
+            all_subs = {**info.get("automatic_captions", {}), **info.get("subtitles", {})}
+            spanish_langs = ["es", "es-orig", "es-419", "es-ES", "es-MX", "es-AR", "es-CO", "es-US"]
+            sub_url = None
+            for lang in spanish_langs:
+                formats = all_subs.get(lang, [])
+                for fmt in formats:
+                    if fmt.get("ext") == "json3":
+                        sub_url = fmt["url"]
+                        break
+                if sub_url:
+                    break
+
+            if not sub_url:
+                yield event({"type": "result", "has_subtitles": False})
+                return
+
+            async with httpx.AsyncClient() as client:
+                r = await client.get(sub_url, timeout=15.0)
+                r.raise_for_status()
+                sub_data = r.json()
+
+            transcript = []
+            for ev in sub_data.get("events", []):
+                segs = ev.get("segs", [])
+                text = "".join(s.get("utf8", "") for s in segs).strip()
+                if text and text != "\n":
+                    transcript.append({
+                        "text": text,
+                        "start": ev["tStartMs"] / 1000,
+                        "duration": ev.get("dDurationMs", 2000) / 1000,
+                    })
+
+            if not transcript:
+                yield event({"type": "result", "has_subtitles": False})
+                return
+
         except Exception:
             yield event({"type": "result", "has_subtitles": False})
             return

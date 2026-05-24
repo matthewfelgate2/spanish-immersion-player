@@ -1,8 +1,9 @@
 fastapi
 uvicorn[standard]
-youtube-transcript-api
+yt-dlp
 httpx
 python-dotenv
 nltk
 deep-translator
 emoji
+pydantic
