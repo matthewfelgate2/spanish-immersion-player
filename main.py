@@ -20,6 +20,8 @@ from concrete_words import CONCRETE_WORDS
 
 load_dotenv()
 
+VERSION = "0.2.0"
+
 PEXELS_API_KEY = os.getenv("PEXELS_API_KEY")
 PIXABAY_API_KEY = os.getenv("PIXABAY_API_KEY")
 
@@ -1265,6 +1267,11 @@ def find_emoji(word: str) -> str | None:
         pass
 
     return None
+
+
+@app.get("/api/version")
+async def get_version():
+    return {"version": VERSION}
 
 
 @app.post("/api/process")

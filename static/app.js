@@ -390,6 +390,12 @@ document.getElementById("url-input").addEventListener("keydown", (e) => {
   if (e.key === "Enter") processVideo();
 });
 
+// Show version in footer
+fetch("/api/version").then(r => r.json()).then(d => {
+  const el = document.getElementById("app-version");
+  if (el) el.textContent = `v${d.version}`;
+}).catch(() => {});
+
 // Auto-load from ?url= query parameter
 const _paramUrl = new URLSearchParams(window.location.search).get("url");
 if (_paramUrl) {
