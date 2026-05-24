@@ -659,3 +659,25 @@ footer {
   border-color: #6d62e8;
   color: #fff;
 }
+
+/* ── Watch next ───────────────────────────────────────────── */
+.watch-next-inner {
+  max-width: 1100px;
+  margin: 2.5rem auto 0;
+  padding: 0 1.5rem 3rem;
+}
+.watch-next-heading {
+  font-family: 'Outfit', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #c4c8e8;
+  margin-bottom: 1rem;
+}
+.watch-next-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.25rem;
+}
+@media (max-width: 640px) {
+  .watch-next-grid { grid-template-columns: 1fr; }
+}

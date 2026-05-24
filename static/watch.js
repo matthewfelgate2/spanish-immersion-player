@@ -232,12 +232,58 @@ async function loadVideo(vid) {
   resetSlots();
   document.getElementById("player-section").classList.remove("hidden");
   setLevelBadge(data.level);
+  renderWatchNext(vid, data.level);
 
   if (ytApiReady) {
     createPlayer(vid);
   } else {
     pendingVideoId = vid;
   }
+}
+
+// ── Watch next ─────────────────────────────────────────────────────────────
+
+function formatDuration(secs) {
+  const m = Math.floor(secs / 60);
+  const s = secs % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+async function renderWatchNext(currentVid, currentLevel) {
+  let videos;
+  try {
+    const res = await fetch("/api/videos");
+    videos = await res.json();
+  } catch (_) { return; }
+
+  const next = videos
+    .filter(v => v.video_id !== currentVid && v.level === currentLevel)
+    .slice(0, 3);
+
+  if (!next.length) return;
+
+  const grid = document.getElementById("watch-next-grid");
+  next.forEach(v => {
+    const a = document.createElement("a");
+    a.href = `/watch?v=${encodeURIComponent(v.video_id)}`;
+    a.className = "video-card";
+    a.innerHTML = `
+      <div class="card-thumb">
+        <img src="${escHtml(v.thumbnail)}" alt="${escHtml(v.title)}" loading="lazy" />
+        <span class="card-duration">${escHtml(formatDuration(v.duration))}</span>
+      </div>
+      <div class="card-info">
+        <h3 class="card-title">${escHtml(v.title)}</h3>
+        <div class="card-meta">
+          <span class="level-badge level-${escHtml(v.level.toLowerCase().replace(/ /g, "-"))}">${escHtml(v.level)}</span>
+          <span class="card-channel">Easy Spanish</span>
+        </div>
+      </div>
+    `;
+    grid.appendChild(a);
+  });
+
+  document.getElementById("watch-next").classList.remove("hidden");
 }
 
 // ── Boot ───────────────────────────────────────────────────────────────────
