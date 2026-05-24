@@ -20,7 +20,7 @@ from concrete_words import CONCRETE_WORDS
 
 load_dotenv()
 
-VERSION = "0.2.0"
+VERSION = "0.2.1"
 
 PEXELS_API_KEY = os.getenv("PEXELS_API_KEY")
 PIXABAY_API_KEY = os.getenv("PIXABAY_API_KEY")
@@ -1308,6 +1308,8 @@ async def process_video(req: VideoRequest):
 
             # Prefer manual subs, fall back to auto-generated
             all_subs = {**info.get("automatic_captions", {}), **info.get("subtitles", {})}
+            print(f"[DEBUG] Available subtitle langs: {list(all_subs.keys())}", flush=True)
+
             spanish_langs = ["es", "es-orig", "es-419", "es-ES", "es-MX", "es-AR", "es-CO", "es-US"]
             sub_url = None
             for lang in spanish_langs:
@@ -1315,11 +1317,13 @@ async def process_video(req: VideoRequest):
                 for fmt in formats:
                     if fmt.get("ext") == "json3":
                         sub_url = fmt["url"]
+                        print(f"[DEBUG] Found json3 for lang={lang}", flush=True)
                         break
                 if sub_url:
                     break
 
             if not sub_url:
+                print(f"[DEBUG] No Spanish json3 found. All langs: {list(all_subs.keys())}", flush=True)
                 yield event({"type": "result", "has_subtitles": False})
                 return
 
@@ -1339,11 +1343,14 @@ async def process_video(req: VideoRequest):
                         "duration": ev.get("dDurationMs", 2000) / 1000,
                     })
 
+            print(f"[DEBUG] Transcript segments: {len(transcript)}", flush=True)
+
             if not transcript:
                 yield event({"type": "result", "has_subtitles": False})
                 return
 
-        except Exception:
+        except Exception as e:
+            print(f"[DEBUG] Subtitle fetch exception: {type(e).__name__}: {e}", flush=True)
             yield event({"type": "result", "has_subtitles": False})
             return
 
