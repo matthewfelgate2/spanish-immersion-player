@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Spanish Immersion Player</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🇪🇸</text></svg>">
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <header>
+    <span class="header-logo">🇪🇸</span>
+    <h1>Spanish <span>Immersion</span> Player</h1>
+    <p>Paste any Spanish YouTube video — images and emojis appear as words are spoken</p>
+  </header>
+
+  <main>
+    <section class="input-section">
+      <div class="input-group">
+        <input type="text" id="url-input" placeholder="Paste a YouTube URL…" />
+        <button id="submit-btn" onclick="processVideo()">Load Video</button>
+      </div>
+      <div id="error-msg" class="error hidden"></div>
+    </section>
+
+    <section id="loading" class="hidden">
+      <div class="loading-inner">
+        <p id="loading-stage">Fetching subtitles…</p>
+        <div class="loading-bar-track">
+          <div class="loading-bar-fill" id="loading-bar"></div>
+        </div>
+        <div class="loading-preview" id="loading-preview"></div>
+      </div>
+      <div class="skeleton-layout">
+        <div class="skeleton-video-col">
+          <div class="skeleton-video" id="skeleton-video"></div>
+          <div class="skeleton-meta">
+            <span id="skeleton-level-badge" class="level-badge level-checking">Checking level…</span>
+          </div>
+        </div>
+        <div class="skeleton-image-column">
+          <div class="skeleton-slot"></div>
+          <div class="skeleton-slot"></div>
+          <div class="skeleton-slot"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="player-section" class="hidden">
+      <div class="player-layout">
+
+        <div class="video-column">
+          <div id="yt-player"></div>
+          <div class="video-meta">
+            <span id="level-badge" class="level-badge"></span>
+            <span id="progress-label" class="progress-label"></span>
+          </div>
+        </div>
+
+        <div class="image-column-wrapper">
+          <p class="image-column-label">Vocabulary</p>
+          <div class="image-column">
+            <div class="image-slot" id="slot-0">
+              <div class="slot-placeholder">Images appear as words are spoken</div>
+            </div>
+            <div class="image-slot" id="slot-1">
+              <div class="slot-placeholder"></div>
+            </div>
+            <div class="image-slot" id="slot-2">
+              <div class="slot-placeholder"></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <span>🇪🇸</span>
+        <span class="footer-brand-name">Spanish Immersion Player</span>
+      </div>
+      <p class="footer-tagline">Learn Spanish through comprehensible input &nbsp;·&nbsp; <span id="app-version">v0.0.0</span></p>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+  <script src="https://www.youtube.com/iframe_api"></script>
+</body>
+</html>

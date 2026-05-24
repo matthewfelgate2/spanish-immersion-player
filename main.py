@@ -1,8 +1,9 @@
 from contextlib import asynccontextmanager
 from collections import OrderedDict
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
+import pathlib
 import asyncio
 import json
 from pydantic import BaseModel
@@ -20,7 +21,7 @@ from concrete_words import CONCRETE_WORDS
 
 load_dotenv()
 
-VERSION = "0.2.6"
+VERSION = "0.2.7"
 
 PEXELS_API_KEY = os.getenv("PEXELS_API_KEY")
 PIXABAY_API_KEY = os.getenv("PIXABAY_API_KEY")
@@ -1554,6 +1555,35 @@ async def get_image(word: str):
                 pass
 
     return {"type": "none"}
+
+
+_DATA_DIR = pathlib.Path("data")
+
+
+@app.get("/watch")
+async def watch_page():
+    return FileResponse("static/watch.html")
+
+
+@app.get("/enter-video")
+async def enter_video_page():
+    return FileResponse("static/enter-video.html")
+
+
+@app.get("/api/videos")
+async def get_videos():
+    p = _DATA_DIR / "videos.json"
+    if not p.exists():
+        return []
+    return json.loads(p.read_text(encoding="utf-8"))
+
+
+@app.get("/api/video/{vid}")
+async def get_video(vid: str):
+    p = _DATA_DIR / f"{vid}.json"
+    if not p.exists():
+        raise HTTPException(status_code=404, detail="Video not found in curated list")
+    return json.loads(p.read_text(encoding="utf-8"))
 
 
 app.mount("/", StaticFiles(directory="static", html=True), name="static")
