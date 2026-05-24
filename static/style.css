@@ -627,3 +627,35 @@ footer {
   font-size: 0.78rem;
   color: #6b7db3;
 }
+
+/* ── Level filters ────────────────────────────────────────── */
+.level-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  max-width: 1200px;
+  margin: 2rem auto 0;
+  padding: 0 1.5rem;
+}
+.level-filter {
+  background: #12153a;
+  border: 1px solid #2a2e5e;
+  color: #9099c8;
+  padding: 0.4rem 1rem;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+.level-filter:hover {
+  background: #1a1f4a;
+  border-color: #5046e5;
+  color: #c4b5fd;
+}
+.level-filter.active {
+  background: #3730a3;
+  border-color: #6d62e8;
+  color: #fff;
+}
