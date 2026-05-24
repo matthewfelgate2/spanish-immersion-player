@@ -20,10 +20,18 @@ from concrete_words import CONCRETE_WORDS
 
 load_dotenv()
 
-VERSION = "0.2.2"
+VERSION = "0.2.3"
 
 PEXELS_API_KEY = os.getenv("PEXELS_API_KEY")
 PIXABAY_API_KEY = os.getenv("PIXABAY_API_KEY")
+
+# Build proxy URL if credentials are set (used by yt-dlp on cloud deployments)
+_proxy_user = os.getenv("PROXY_USERNAME", "")
+_proxy_pass = os.getenv("PROXY_PASSWORD", "")
+PROXY_URL = (
+    f"http://{_proxy_user.replace('@', '%40')}:{_proxy_pass.replace('$', '%24')}@proxy.webshare.io:80"
+    if _proxy_user and _proxy_pass else None
+)
 
 # Cache processed results for the last 10 videos (resets on server restart)
 _cache: OrderedDict = OrderedDict()
@@ -1279,7 +1287,7 @@ async def debug_subtitles(vid: str):
     """Diagnostic endpoint — shows exactly what yt-dlp finds for a video."""
     try:
         url = f"https://www.youtube.com/watch?v={vid}"
-        ydl_opts = {"skip_download": True, "quiet": True, "no_warnings": True}
+        ydl_opts = {"skip_download": True, "quiet": True, "no_warnings": True, **({"proxy": PROXY_URL} if PROXY_URL else {})}
         loop = asyncio.get_event_loop()
         info = await loop.run_in_executor(
             None,
@@ -1323,6 +1331,7 @@ async def process_video(req: VideoRequest):
                 "skip_download": True,
                 "quiet": True,
                 "no_warnings": True,
+                **({"proxy": PROXY_URL} if PROXY_URL else {}),
             }
             loop = asyncio.get_event_loop()
             info = await loop.run_in_executor(
