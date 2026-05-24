@@ -20,18 +20,24 @@ from concrete_words import CONCRETE_WORDS
 
 load_dotenv()
 
-VERSION = "0.2.5"
+VERSION = "0.2.6"
 
 PEXELS_API_KEY = os.getenv("PEXELS_API_KEY")
 PIXABAY_API_KEY = os.getenv("PIXABAY_API_KEY")
 
-# Build proxy URL if credentials are set (used by yt-dlp on cloud deployments)
-_proxy_user = os.getenv("PROXY_USERNAME", "")
-_proxy_pass = os.getenv("PROXY_PASSWORD", "")
-PROXY_URL = (
-    f"http://{_proxy_user.replace('@', '%40')}:{_proxy_pass.replace('$', '%24')}@p.webshare.io:80"
-    if _proxy_user and _proxy_pass else None
-)
+# YouTube cookies — base64-encoded Netscape cookie file stored as env var
+import base64, tempfile
+_cookies_b64 = os.getenv("YOUTUBE_COOKIES_B64", "")
+COOKIE_FILE = None
+if _cookies_b64:
+    try:
+        _tf = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False)
+        _tf.write(base64.b64decode(_cookies_b64).decode())
+        _tf.flush()
+        COOKIE_FILE = _tf.name
+        print(f"[INFO] YouTube cookie file written to {COOKIE_FILE}", flush=True)
+    except Exception as _e:
+        print(f"[WARN] Failed to decode YOUTUBE_COOKIES_B64: {_e}", flush=True)
 
 # Cache processed results for the last 10 videos (resets on server restart)
 _cache: OrderedDict = OrderedDict()
@@ -1357,7 +1363,11 @@ async def debug_subtitles(vid: str):
     """Diagnostic endpoint — shows exactly what yt-dlp finds for a video."""
     try:
         url = f"https://www.youtube.com/watch?v={vid}"
-        ydl_opts = {"skip_download": True, "quiet": True, "no_warnings": True, "extractor_args": {"youtube": {"player_client": ["android"]}}}
+        ydl_opts = {
+            "skip_download": True, "quiet": True, "no_warnings": True,
+            "extractor_args": {"youtube": {"player_client": ["android"]}},
+            **({"cookiefile": COOKIE_FILE} if COOKIE_FILE else {}),
+        }
         loop = asyncio.get_event_loop()
         info = await loop.run_in_executor(
             None,
@@ -1404,6 +1414,7 @@ async def process_video(req: VideoRequest):
                 "quiet": True,
                 "no_warnings": True,
                 "extractor_args": {"youtube": {"player_client": ["android"]}},
+                **({"cookiefile": COOKIE_FILE} if COOKIE_FILE else {}),
             }
             loop = asyncio.get_event_loop()
             info = await loop.run_in_executor(
